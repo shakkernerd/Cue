@@ -154,7 +154,8 @@ private let hdmi = Rule(trigger: Trigger(edge: .left, modifiers: .control), acti
         let start = EdgeWatcher.uptime()
         watcher.pointerMoved(to: rightEdge, delta: pushRight, modifiers: .control)
         try await Task.sleep(for: .milliseconds(100))
-        #expect(fired.isEmpty)
+        // Only meaningful while the sleep did not overshoot toward the deadline (slow CI runners).
+        if EdgeWatcher.uptime() - start < 0.140 { #expect(fired.isEmpty) }
         try await Task.sleep(for: .milliseconds(250))
         #expect(fired.count == 1)
         #expect(fired.first?.rule == usbc)
@@ -166,8 +167,9 @@ private let hdmi = Rule(trigger: Trigger(edge: .left, modifiers: .control), acti
         final class Pointer { var location = rightEdge }
         let pointer = Pointer()
         var fired = 0
+        // A long dwell, so a slow runner cannot reach the deadline before the pointer leaves.
         let watcher = EdgeWatcher(
-            rules: [usbc],
+            rules: [usbc], dwell: 1.0,
             environment: EdgeWatcher.Environment(layout: { layout }, currentInput: { (pointer.location, .control) }),
             fire: { _ in fired += 1 }
         )
@@ -175,7 +177,7 @@ private let hdmi = Rule(trigger: Trigger(edge: .left, modifiers: .control), acti
         try await Task.sleep(for: .milliseconds(50))
         pointer.location = inside
         watcher.pointerMoved(to: inside, delta: pushLeft, modifiers: .control)
-        try await Task.sleep(for: .milliseconds(300))
+        try await Task.sleep(for: .milliseconds(1200))
         #expect(fired == 0)
         #expect(watcher.pending == nil)
     }

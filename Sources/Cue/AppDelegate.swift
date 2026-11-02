@@ -157,6 +157,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func perform(_ rule: Rule) {
         switch rule.action {
         case .keys(let spec):
+            // macOS drops posted events without the permission, which can be turned off while Cue runs.
+            guard AXIsProcessTrusted() else {
+                log.error("not fired \(Self.describe(rule.trigger), privacy: .public): Accessibility is off")
+                return
+            }
             Keystroke.post(spec)
             log.notice("fired \(Self.describe(rule.trigger), privacy: .public): keys \(spec.description, privacy: .public)")
         }
