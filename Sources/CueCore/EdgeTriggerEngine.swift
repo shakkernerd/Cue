@@ -1,12 +1,13 @@
 import CoreGraphics
 
-/// Decides when a rule fires. Pure state machine: callers feed it pointer and modifier observations with a monotonic
-/// time in seconds, and call `deadlineReached` when `pending.deadline` passes.
+/// Decides when a rule fires. Pure state machine: callers feed it pointer observations, each with the modifiers held
+/// at that event, and a monotonic time in seconds, and call `deadlineReached` when `pending.deadline` passes.
 ///
 /// - A rule arms only when the pointer is on one of its display's outer edges, moving into that edge (a push), with
 ///   exactly the rule's modifiers held. A pointer placed or warped onto the edge has no push and does not arm.
 /// - An armed rule fires when it is still on the edge with the same modifiers once `dwell` has passed.
-/// - Leaving the edge or changing modifiers before then cancels it.
+/// - A pointer event off the edge or with other modifiers cancels it, and so does either condition at the deadline.
+///   A modifier released and pressed again within the dwell, with no pointer event in between, is not seen.
 /// - After firing, the edge stays spent until the pointer leaves it, so one arrival fires once.
 public struct EdgeTriggerEngine: Sendable {
     public static let defaultDwell: Double = 0.150
@@ -48,13 +49,6 @@ public struct EdgeTriggerEngine: Sendable {
                 && edge.isPushed(by: delta)
         }) {
             pending = Pending(rule: rule, deadline: time + dwell)
-        }
-    }
-
-    /// The held modifiers changed without pointer movement.
-    public mutating func modifiersChanged(to modifiers: Modifiers) {
-        if let pending, modifiers != pending.rule.trigger.modifiers {
-            self.pending = nil
         }
     }
 

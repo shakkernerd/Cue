@@ -1,17 +1,15 @@
 import CoreGraphics
 
-/// A listen-only session event tap for pointer movement and modifier changes. Listen-only: events pass through
-/// unchanged and undelayed, whatever the handlers do.
+/// A listen-only session event tap for pointer movement. Listen-only: events pass through unchanged and undelayed,
+/// whatever the handler does. It observes no keyboard events: the held modifiers come from each pointer event's flags.
 @MainActor
 final class EventTap {
     private let onMove: @MainActor (CGEvent) -> Void
-    private let onFlagsChanged: @MainActor (CGEvent) -> Void
     private var port: CFMachPort?
     private var source: CFRunLoopSource?
 
-    init(onMove: @escaping @MainActor (CGEvent) -> Void, onFlagsChanged: @escaping @MainActor (CGEvent) -> Void) {
+    init(onMove: @escaping @MainActor (CGEvent) -> Void) {
         self.onMove = onMove
-        self.onFlagsChanged = onFlagsChanged
     }
 
     var isRunning: Bool { port != nil }
@@ -19,7 +17,7 @@ final class EventTap {
     /// Starts the tap on the main run loop. Returns false when macOS refuses it (no Accessibility permission).
     func start() -> Bool {
         if port != nil { return true }
-        let types: [CGEventType] = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged, .flagsChanged]
+        let types: [CGEventType] = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
         let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
         guard let port = CGEvent.tapCreate(
             tap: .cgSessionEventTap, place: .headInsertEventTap, options: .listenOnly, eventsOfInterest: mask,
@@ -46,8 +44,6 @@ final class EventTap {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             if let port { CGEvent.tapEnable(tap: port, enable: true) }
-        case .flagsChanged:
-            onFlagsChanged(event)
         default:
             onMove(event)
         }

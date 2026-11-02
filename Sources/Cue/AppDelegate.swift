@@ -4,7 +4,7 @@ import CueCore
 import os
 
 private let log = Logger(subsystem: "com.shakkernerd.cue", category: "app")
-/// Every observed event at debug level, for diagnosing edge behavior:
+/// Every observed pointer event at debug level, for diagnosing edge behavior:
 /// `log stream --level debug --predicate 'subsystem == "com.shakkernerd.cue"'`.
 private let timeline = Logger(subsystem: "com.shakkernerd.cue", category: "timeline")
 
@@ -29,10 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fire: { [unowned self] rule in perform(rule) }
     )
 
-    private lazy var tap = EventTap(
-        onMove: { [unowned self] event in pointerMoved(event) },
-        onFlagsChanged: { [unowned self] event in flagsChanged(event) }
-    )
+    private lazy var tap = EventTap(onMove: { [unowned self] event in pointerMoved(event) })
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         loadConfig()
@@ -132,15 +129,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         watcher.pointerMoved(to: location, delta: delta, modifiers: modifiers)
         timeline.debug(
             "move t=\(EdgeWatcher.uptime(), format: .fixed(precision: 4)) x=\(location.x) y=\(location.y) dx=\(delta.dx) dy=\(delta.dy) flags=0x\(String(event.flags.rawValue, radix: 16), privacy: .public) mods=\(modifiers.description, privacy: .public)")
-        logTransition(from: before)
-    }
-
-    private func flagsChanged(_ event: CGEvent) {
-        let modifiers = Modifiers(flags: event.flags)
-        let before = watcher.pending
-        watcher.modifiersChanged(to: modifiers)
-        timeline.debug(
-            "flags t=\(EdgeWatcher.uptime(), format: .fixed(precision: 4)) flags=0x\(String(event.flags.rawValue, radix: 16), privacy: .public) mods=\(modifiers.description, privacy: .public)")
         logTransition(from: before)
     }
 

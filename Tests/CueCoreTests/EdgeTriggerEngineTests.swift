@@ -101,20 +101,35 @@ private let hdmi = Rule(trigger: Trigger(edge: .left, modifiers: .control), acti
         #expect(Modifiers(flags: .maskAlphaShift).isEmpty)
     }
 
-    @Test mutating func modifierChangeDuringTheDwellCancels() {
+    @Test mutating func modifierChangeSeenOnAPointerEventDuringTheDwellCancels() {
         move(rightEdge, pushRight, at: 0)
-        engine.modifiersChanged(to: [.control, .option])
+        // Resting on the edge, the user adds Option; the next pointer event carries it.
+        move(rightEdge, .zero, [.control, .option], at: 0.05)
         #expect(engine.pending == nil)
-        #expect(deadline(at: 0.15) == nil)
-        // Pressing back to Control alone does not re-arm: arming needs a push.
-        engine.modifiersChanged(to: .control)
+        #expect(deadline(rightEdge, .control, at: 0.15) == nil)
+        // Back to Control alone without a new push does not re-arm.
+        move(rightEdge, .zero, .control, at: 0.1)
         #expect(engine.pending == nil)
     }
 
-    @Test mutating func modifiersAtTheDeadlineMustStillMatch() {
+    /// Cue observes no keyboard events, so the modifiers held at the deadline decide the fire.
+    @Test mutating func modifiersAtTheDeadlineDecideTheFire() {
         move(rightEdge, pushRight, at: 0)
-        #expect(deadline(rightEdge, [], at: 0.15) == nil)
-        #expect(deadline(rightEdge, [.control, .command], at: 0.15) == nil)
+        #expect(deadline(rightEdge, [], at: 0.15) == nil, "released")
+        move(inside, pushLeft, at: 0.2)
+        move(rightEdge, pushRight, at: 0.3)
+        #expect(deadline(rightEdge, [.control, .command], at: 0.45) == nil, "changed")
+        move(inside, pushLeft, at: 0.5)
+        move(rightEdge, pushRight, at: 0.6)
+        #expect(deadline(rightEdge, .control, at: 0.75) == usbc, "still held")
+    }
+
+    /// Accepted limit: Control released and pressed again within the dwell, with no pointer event in between, is not
+    /// observed (Cue watches no keyboard events), so the rule fires because Control is held at the deadline.
+    @Test mutating func releaseAndRepressWithinTheDwellWithoutPointerEventsStillFires() {
+        move(rightEdge, pushRight, at: 0)
+        // Control up at 0.05 and down again at 0.10: no event reaches the engine.
+        #expect(deadline(rightEdge, .control, at: 0.15) == usbc)
     }
 
     @Test mutating func edgeSharedWithAnotherDisplayNeverArms() {

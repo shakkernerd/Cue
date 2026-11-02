@@ -56,11 +56,6 @@ public final class EdgeWatcher {
         schedule()
     }
 
-    public func modifiersChanged(to modifiers: Modifiers) {
-        engine.modifiersChanged(to: modifiers)
-        schedule()
-    }
-
     /// Keeps exactly one timer, for the engine's current deadline.
     private func schedule() {
         let deadline = engine.pending?.deadline

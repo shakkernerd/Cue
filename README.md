@@ -4,7 +4,7 @@ Cue is a small macOS menu-bar app that fires an action when you push the pointer
 
 It was built to switch a monitor's input from the same gesture that moves a shared mouse between two Macs: BenQ Display Pilot 2 switches the input on Ctrl+Shift+1 / Ctrl+Shift+4, and Logi Flow moves the mouse on Control + screen edge.
 
-Cue only listens to input. It never blocks, delays or changes your own mouse and keyboard events.
+Cue only listens to pointer movement. It never blocks, delays or changes your own mouse events, and it does not watch the keyboard: it reads which modifier keys are held from the pointer events themselves.
 
 ## How a trigger fires
 
@@ -13,7 +13,7 @@ A rule fires when all of these hold:
 - The pointer is on an **outer** edge of its display: an edge, or the part of an edge, that no other display adjoins. Where another display adjoins, the pointer crosses over instead of resting, so that part never fires.
 - The pointer was **pushed** into the edge: it moved toward the edge while on it. A pointer placed or moved onto the edge by software (for example Logi Flow bringing it in from another Mac) has no push and does not arm the rule.
 - **Exactly** the rule's modifier keys are held. Control + Option does not fire a Control rule. Caps Lock and Fn are ignored.
-- The pointer **rests** there for 150 ms with those modifiers still held. A quick pass over the edge does nothing.
+- The pointer **rests** there for 150 ms, and the same modifiers are still held at the end of it. A quick pass over the edge does nothing.
 
 A rule fires once per arrival. To fire it again, move the pointer off that edge and push into it again.
 
@@ -48,7 +48,7 @@ swift test
 
 ## Allow Accessibility
 
-Cue needs the Accessibility permission to watch the pointer and post keystrokes. On first launch macOS asks for it; choose **Open System Settings** and turn on **Cue** under **Privacy & Security → Accessibility**. Cue never changes this setting itself.
+Accessibility is the only permission Cue needs: it lets Cue watch the pointer and post keystrokes. On first launch macOS asks for it; choose **Open System Settings** and turn on **Cue** under **Privacy & Security → Accessibility**. Cue never changes this setting itself.
 
 Until the permission is on, the menu shows **Accessibility: not allowed** with an **Allow in System Settings…** item, and the menu-bar icon is crossed out. Cue starts watching within a second of the permission being turned on.
 
@@ -137,7 +137,7 @@ Cue logs to the unified log under the subsystem `com.shakkernerd.cue`. Fired rul
 log show --last 1h --predicate 'subsystem == "com.shakkernerd.cue"'
 ```
 
-Every pointer and modifier event Cue sees, with positions, deltas and timings, while you reproduce a problem:
+Every pointer event Cue sees, with its position, delta, modifier keys and timing, while you reproduce a problem:
 
 ```bash
 log stream --level debug --predicate 'subsystem == "com.shakkernerd.cue"'
