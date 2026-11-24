@@ -48,7 +48,7 @@ swift test
 
 ## Allow Accessibility
 
-Accessibility is the only permission Cue needs: it lets Cue watch the pointer and post keystrokes. On first launch macOS asks for it; choose **Open System Settings** and turn on **Cue** under **Privacy & Security → Accessibility**. Cue never changes this setting itself.
+Accessibility is the only privacy permission Cue needs: it lets Cue watch the pointer and post keystrokes. On first launch macOS asks for it; choose **Open System Settings** and turn on **Cue** under **Privacy & Security → Accessibility**. Cue never changes this setting itself.
 
 Until the permission is on, the menu shows **Accessibility: not allowed** with an **Allow in System Settings…** item, and the menu-bar icon is crossed out. Cue starts watching within a second of the permission being turned on.
 

@@ -17,7 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var trustPoll: Timer?
     private var tapFailed = false
-    private var loginItemError: String?
+    /// The last failed register or remove, with the status it started from.
+    private var loginItemFailure: (status: LoginItemStatus, message: String)?
 
     private lazy var watcher = EdgeWatcher(
         rules: [],
@@ -262,10 +263,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(Self.info("Launch at Login needs approval in System Settings"))
             menu.addItem(Self.action("Open Login Items Settings…", #selector(openLoginItemsSettings), target: self))
         }
-        if let loginItemError {
-            let item = Self.info("Launch at Login failed: \(loginItemError)")
-            item.toolTip = loginItemError
+        // A failure is shown only while the status is still the one it started from; once the status
+        // changes (for example the user allowed Cue in System Settings) the failure no longer describes it.
+        if let failure = loginItemFailure, failure.status == loginItem {
+            let item = Self.info("Launch at Login failed: \(failure.message)")
+            item.toolTip = failure.message
             menu.addItem(item)
+        } else {
+            loginItemFailure = nil
         }
         menu.addItem(.separator())
         menu.addItem(Self.action("Quit Cue", #selector(NSApplication.terminate(_:)), key: "q", target: NSApp))
@@ -280,17 +285,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// status again the next time it opens.
     @objc private func toggleLaunchAtLogin() {
         let service = SMAppService.mainApp
-        let register = LoginItemStatus(service.status).registersOnToggle
+        let before = LoginItemStatus(service.status)
+        let register = before.registersOnToggle
         do {
             if register {
                 try service.register()
             } else {
                 try service.unregister()
             }
-            loginItemError = nil
+            loginItemFailure = nil
             log.notice("launch at login \(register ? "registered" : "removed", privacy: .public): status \(String(describing: service.status), privacy: .public)")
         } catch {
-            loginItemError = error.localizedDescription
+            loginItemFailure = (before, error.localizedDescription)
             log.error("launch at login \(register ? "register" : "unregister", privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
         }
     }
