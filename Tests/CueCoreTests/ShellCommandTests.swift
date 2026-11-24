@@ -56,6 +56,26 @@ import Testing
         #expect(lines == ["login", home, home])
     }
 
+    @Test func passesLoginOnlyToShellsThatAcceptItWithCommand() {
+        #expect(ShellCommand.arguments(for: URL(filePath: "/bin/zsh"), running: "x") == ["-l", "-c", "x"])
+        #expect(ShellCommand.arguments(for: URL(filePath: "/bin/bash"), running: "x") == ["-l", "-c", "x"])
+        #expect(ShellCommand.arguments(for: URL(filePath: "/bin/tcsh"), running: "x") == ["-c", "x"])
+        #expect(ShellCommand.arguments(for: URL(filePath: "/bin/csh"), running: "x") == ["-c", "x"])
+    }
+
+    /// Every shell macOS lists in `/etc/shells` runs the command and expands `~`.
+    @Test(arguments: ["/bin/zsh", "/bin/bash", "/bin/sh", "/bin/dash", "/bin/ksh", "/bin/csh", "/bin/tcsh"])
+    func runsInEveryStandardShell(shell: String) throws {
+        let out = temporaryFile()
+        defer { try? FileManager.default.removeItem(at: out) }
+        let exits = Exits()
+        try ShellCommand.run("echo ~ > '\(out.path)'", shell: URL(filePath: shell), onExit: exits.record)
+        #expect(exits.next()?.exit == .status(0))
+        let home = (FileManager.default.homeDirectoryForCurrentUser.path(percentEncoded: false) as NSString)
+            .standardizingPath
+        #expect(try contents(out) == home)
+    }
+
     @Test func usesTheLoginShellFromTheUserDatabase() throws {
         let entry = try #require(getpwuid(getuid()))
         let shell = try #require(entry.pointee.pw_shell)

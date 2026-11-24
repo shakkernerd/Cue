@@ -108,7 +108,7 @@ The posted keystroke carries only the modifiers written in `keys`. The modifiers
 }
 ```
 
-Cue runs the command with your login shell, the shell set for your user account (zsh unless you changed it), as `<shell> -l -c '<command>'`. So `~`, `$HOME`, pipes and redirection work, and so does the `PATH` your shell's login files set (`.zprofile`, `.bash_profile`, Homebrew's `shellenv`). Files read only by interactive shells, such as `.zshrc`, are not read.
+Cue runs the command with your login shell, the shell set for your user account (zsh unless you changed it), as `<shell> -l -c '<command>'`. So `~`, `$HOME`, pipes and redirection work, and so does the `PATH` your shell's login files set (`.zprofile`, `.bash_profile`, Homebrew's `shellenv`). Files read only by interactive shells, such as `.zshrc`, are not read. csh and tcsh do not accept `-l` together with `-c`, so with them Cue runs `<shell> -c '<command>'`, which reads `.cshrc` but not `.login`.
 
 - The command starts in your home directory with Cue's environment.
 - Cue does not wait for it. It starts the command and keeps watching, so a slow command such as `sleep 5` does not delay the next trigger. Each trigger starts a new run, even while an earlier one is still going, and a running command keeps running when Cue quits.

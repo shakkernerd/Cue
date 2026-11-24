@@ -122,7 +122,7 @@ public struct Config: Equatable, Sendable {
                 throw ConfigError("\(path).shell: expected a string such as \"open -a Safari\"")
             }
             guard !command.allSatisfy(\.isWhitespace) else {
-                throw ConfigError("\(path).shell: expected a command, found an empty string")
+                throw ConfigError("\(path).shell: expected a command, found an empty or blank string")
             }
             return .shell(command)
         default:

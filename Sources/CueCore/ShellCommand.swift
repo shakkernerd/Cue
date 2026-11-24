@@ -21,13 +21,29 @@ public enum ShellCommand {
 
     /// The user's login shell from the user database (`/bin/zsh`, macOS's default, if it names none).
     public static var loginShell: URL {
-        if let entry = getpwuid(getuid()), let shell = entry.pointee.pw_shell, shell.pointee != 0 {
-            return URL(filePath: String(cString: shell))
+        var entry = passwd()
+        var found: UnsafeMutablePointer<passwd>?
+        var buffer = [CChar](repeating: 0, count: 4096)
+        let shell: String? = buffer.withUnsafeMutableBufferPointer { storage in
+            guard getpwuid_r(getuid(), &entry, storage.baseAddress, storage.count, &found) == 0, found != nil,
+                  let shell = entry.pw_shell, shell.pointee != 0
+            else { return nil }
+            return String(cString: shell)
         }
-        return URL(filePath: "/bin/zsh")
+        return URL(filePath: shell ?? "/bin/zsh")
     }
 
-    /// Starts `command` as `<shell> -l -c <command>` and returns its process ID without waiting for it to end.
+    /// The arguments that run `command` in `shell` as a login shell: `-l -c <command>`. csh and tcsh accept `-l` only
+    /// as their sole flag, so they get `-c <command>` and read `.cshrc` but not `.login`.
+    public static func arguments(for shell: URL, running command: String) -> [String] {
+        switch shell.lastPathComponent {
+        case "csh", "tcsh": ["-c", command]
+        default: ["-l", "-c", command]
+        }
+    }
+
+    /// Starts `command` through `shell` as a login shell (`arguments(for:running:)`) and returns its process ID without
+    /// waiting for it to end.
     ///
     /// The command runs in the home directory with Cue's environment; the login shell adds the `PATH` and variables
     /// from its login files. Standard input, output and error are `/dev/null`, so the command never waits on Cue.
@@ -39,7 +55,7 @@ public enum ShellCommand {
     ) throws -> Int32 {
         let process = Process()
         process.executableURL = shell
-        process.arguments = ["-l", "-c", command]
+        process.arguments = arguments(for: shell, running: command)
         process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
