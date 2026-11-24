@@ -52,6 +52,14 @@ Accessibility is the only permission Cue needs: it lets Cue watch the pointer an
 
 Until the permission is on, the menu shows **Accessibility: not allowed** with an **Allow in System Settings…** item, and the menu-bar icon is crossed out. Cue starts watching within a second of the permission being turned on.
 
+## Launch at login
+
+Choose **Launch at Login** in the menu to start Cue automatically when you log in. The item is checked while Cue is registered as a login item, and choosing it again removes the login item. Cue reads the real status from macOS each time the menu opens, so the checkmark also follows changes you make under **System Settings → General → Login Items**.
+
+macOS may ask you to allow the login item. Until you do, the item shows a dash instead of a checkmark, with **Launch at Login needs approval in System Settings** and an **Open Login Items Settings…** item that opens the pane. Cue never changes that setting itself. If macOS refuses to register or remove the login item, the menu shows the reason.
+
+Cue registers the app you are running, so launch the copy you want at login, for example the one in `/Applications`, before turning it on.
+
 ## Configure
 
 Rules live in `~/.config/cue/config.json`. Cue creates it on first launch with no rules:

@@ -2,6 +2,7 @@ import AppKit
 import ApplicationServices
 import CueCore
 import os
+import ServiceManagement
 
 private let log = Logger(subsystem: "com.shakkernerd.cue", category: "app")
 /// Every observed pointer event at debug level, for diagnosing edge behavior:
@@ -16,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var trustPoll: Timer?
     private var tapFailed = false
+    private var loginItemError: String?
 
     private lazy var watcher = EdgeWatcher(
         rules: [],
@@ -247,12 +249,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(Self.action("Open Config", #selector(openConfig), key: ",", target: self))
         menu.addItem(Self.action("Reload Config", #selector(reloadConfigFromMenu), key: "r", target: self))
         menu.addItem(.separator())
+
+        let loginItem = LoginItemStatus(SMAppService.mainApp.status)
+        let toggle = Self.action("Launch at Login", #selector(toggleLaunchAtLogin), target: self)
+        toggle.state = switch loginItem.mark {
+        case .on: .on
+        case .mixed: .mixed
+        case .off: .off
+        }
+        menu.addItem(toggle)
+        if loginItem.needsApproval {
+            menu.addItem(Self.info("Launch at Login needs approval in System Settings"))
+            menu.addItem(Self.action("Open Login Items Settings…", #selector(openLoginItemsSettings), target: self))
+        }
+        if let loginItemError {
+            let item = Self.info("Launch at Login failed: \(loginItemError)")
+            item.toolTip = loginItemError
+            menu.addItem(item)
+        }
+        menu.addItem(.separator())
         menu.addItem(Self.action("Quit Cue", #selector(NSApplication.terminate(_:)), key: "q", target: NSApp))
     }
 
     @objc private func allowAccessibility() {
         requestAccessibility(openSettings: true)
         waitForAccessibility()
+    }
+
+    /// Registers or removes Cue as a login item, whichever the real status calls for; the menu reads the
+    /// status again the next time it opens.
+    @objc private func toggleLaunchAtLogin() {
+        let service = SMAppService.mainApp
+        let register = LoginItemStatus(service.status).registersOnToggle
+        do {
+            if register {
+                try service.register()
+            } else {
+                try service.unregister()
+            }
+            loginItemError = nil
+            log.notice("launch at login \(register ? "registered" : "removed", privacy: .public): status \(String(describing: service.status), privacy: .public)")
+        } catch {
+            loginItemError = error.localizedDescription
+            log.error("launch at login \(register ? "register" : "unregister", privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Opens the Login Items pane so the user can allow Cue; Cue never changes the setting itself.
+    @objc private func openLoginItemsSettings() {
+        SMAppService.openSystemSettingsLoginItems()
     }
 
     private static func info(_ title: String) -> NSMenuItem {
