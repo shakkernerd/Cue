@@ -1,6 +1,6 @@
 # Cue
 
-Cue is a small macOS menu-bar app that fires an action when you push the pointer onto a screen edge while holding modifier keys. Hold Control, push the pointer against the right edge for a moment, and Cue presses a keyboard shortcut for you, system-wide.
+Cue is a small macOS menu-bar app that fires an action when you push the pointer onto a screen edge while holding modifier keys. Hold Control, push the pointer against the right edge for a moment, and Cue presses a keyboard shortcut for you, system-wide, or runs a shell command.
 
 It was built to switch a monitor's input from the same gesture that moves a shared mouse between two Macs: BenQ Display Pilot 2 switches the input on Ctrl+Shift+1 / Ctrl+Shift+4, and Logi Flow moves the mouse on Control + screen edge.
 
@@ -79,7 +79,9 @@ Each rule has a `trigger` and an `action`:
 
 - `trigger.edge`: `left`, `right`, `top` or `bottom`.
 - `trigger.modifiers`: the modifier keys that must be held, exactly: any of `control` (`ctrl`), `option` (`opt`, `alt`), `shift`, `command` (`cmd`). An empty list means no modifiers held.
-- `action.keys`: the keystroke to post, written as modifiers and one key joined by `+`, such as `ctrl+shift+4`, `cmd+option+left` or `f13`. Case and spaces around `+` do not matter.
+- `action`: exactly one of
+  - `keys`: the keystroke to post, written as modifiers and one key joined by `+`, such as `ctrl+shift+4`, `cmd+option+left` or `f13`. Case and spaces around `+` do not matter.
+  - `shell`: a command to run, such as `"open -a Safari"` or `"~/bin/desk.sh"`. See [Shell commands](#shell-commands).
 
 Two rules may not share the same edge and modifiers. If the config has an error, the menu shows it with its location, for example `rules[0].trigger.edge: expected one of left, right, top, bottom`, and no rules from that file are used.
 
@@ -96,6 +98,22 @@ Two rules may not share the same edge and modifiers. If the config has an error,
 Key names refer to positions on the **US ANSI** keyboard layout. Cue posts the key at that position, so with another layout active the character produced may differ: on a German layout `y` posts the key labeled Z.
 
 The posted keystroke carries only the modifiers written in `keys`. The modifiers you are holding for the trigger are not added: a Control trigger with `"keys": "shift+f1"` posts Shift+F1, not Control+Shift+F1.
+
+### Shell commands
+
+```json
+{
+  "trigger": { "edge": "bottom", "modifiers": ["control", "option"] },
+  "action": { "shell": "date >> ~/cue.log" }
+}
+```
+
+Cue runs the command with your login shell, the shell set for your user account (zsh unless you changed it), as `<shell> -l -c '<command>'`. So `~`, `$HOME`, pipes and redirection work, and so does the `PATH` your shell's login files set (`.zprofile`, `.bash_profile`, Homebrew's `shellenv`). Files read only by interactive shells, such as `.zshrc`, are not read. csh and tcsh do not accept `-l` together with `-c`, so with them Cue runs `<shell> -c '<command>'`, which reads `.cshrc` but not `.login`.
+
+- The command starts in your home directory with Cue's environment.
+- Cue does not wait for it. It starts the command and keeps watching, so a slow command such as `sleep 5` does not delay the next trigger. Each trigger starts a new run, even while an earlier one is still going, and a running command keeps running when Cue quits.
+- Input is empty and output is discarded. Redirect inside the command to keep it: `"my-script >> ~/cue.log 2>&1"`.
+- Cue logs each run's process ID when it starts and its exit status when it ends; a non-zero exit status or a signal is logged as an error (see [Troubleshooting](#troubleshooting)). The command text is not logged, since it can hold secrets.
 
 ### Example: switch a BenQ monitor's input with Display Pilot 2
 
@@ -131,11 +149,13 @@ When Logi Flow brings the pointer back onto the other Mac with Control still hel
 
 ## Troubleshooting
 
-Cue logs to the unified log under the subsystem `com.shakkernerd.cue`. Fired rules and config errors:
+Cue logs to the unified log under the subsystem `com.shakkernerd.cue`. Fired rules, failed shell commands and config errors:
 
 ```bash
 log show --last 1h --predicate 'subsystem == "com.shakkernerd.cue"'
 ```
+
+Add `--info` to also see shell commands that ended successfully.
 
 Every pointer event Cue sees, with its position, delta, modifier keys and timing, while you reproduce a problem:
 

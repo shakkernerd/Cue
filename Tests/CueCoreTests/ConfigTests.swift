@@ -85,6 +85,15 @@ import Testing
         #expect(config.rules[1].action == .keys(try KeySpec.parse("ctrl+shift+1")))
     }
 
+    @Test func parsesAShellAction() throws {
+        let config = try parse(#"""
+            {"rules": [
+              {"trigger": {"edge": "right", "modifiers": ["control"]}, "action": {"shell": "date >> ~/cue.log"}}
+            ]}
+            """#)
+        #expect(config.rules[0].action == .shell("date >> ~/cue.log"))
+    }
+
     @Test func emptyRulesAreValid() throws {
         #expect(try parse(ConfigFile.initialContents).rules.isEmpty)
         #expect(try parse(#"{"rules": []}"#).rules.isEmpty)
@@ -120,8 +129,14 @@ import Testing
          "rules[0].trigger.modifiers[1]: \"control\" repeats a modifier"),
         (#"{"rules": [{"trigger": {"edge": "left", "modifiers": [], "corner": 1}, "action": {"keys": "a"}}]}"#,
          "rules[0].trigger: unknown key \"corner\""),
-        (#"{"rules": [{"trigger": {"edge": "left", "modifiers": []}, "action": {"shell": "say hi"}}]}"#,
-         "rules[0].action: unknown action kind \"shell\"; supported: keys"),
+        (#"{"rules": [{"trigger": {"edge": "left", "modifiers": []}, "action": {"open": "Safari"}}]}"#,
+         "rules[0].action: unknown action kind \"open\"; supported: keys, shell"),
+        (#"{"rules": [{"trigger": {"edge": "left", "modifiers": []}, "action": {"shell": ["say", "hi"]}}]}"#,
+         "rules[0].action.shell: expected a string"),
+        (#"{"rules": [{"trigger": {"edge": "left", "modifiers": []}, "action": {"shell": " \n "}}]}"#,
+         "rules[0].action.shell: expected a command, found an empty or blank string"),
+        (#"{"rules": [{"trigger": {"edge": "left", "modifiers": []}, "action": {"shell": ""}}]}"#,
+         "rules[0].action.shell: expected a command, found an empty or blank string"),
         (#"{"rules": [{"trigger": {"edge": "left", "modifiers": []}, "action": {}}]}"#,
          "rules[0].action: expected exactly one action kind"),
         (#"{"rules": [{"trigger": {"edge": "left", "modifiers": []}, "action": {"keys": "a", "shell": "x"}}]}"#,
