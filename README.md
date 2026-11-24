@@ -62,7 +62,7 @@ Rules live in `~/.config/cue/config.json`. Cue creates it on first launch with n
 }
 ```
 
-Choose **Open Config** in the menu to edit it. Cue reads the config at launch: after saving, quit Cue from its menu and open it again.
+Choose **Open Config** in the menu to edit it. Cue applies the file as soon as you save it, with no restart, however your editor saves: in place, by replacing the file, or by deleting and recreating it. **Reload Config** in the menu reads it again on demand.
 
 Each rule has a `trigger` and an `action`:
 
@@ -83,7 +83,7 @@ Each rule has a `trigger` and an `action`:
   - `keys`: the keystroke to post, written as modifiers and one key joined by `+`, such as `ctrl+shift+4`, `cmd+option+left` or `f13`. Case and spaces around `+` do not matter.
   - `shell`: a command to run, such as `"open -a Safari"` or `"~/bin/desk.sh"`. See [Shell commands](#shell-commands).
 
-Two rules may not share the same edge and modifiers. If the config has an error, the menu shows it with its location, for example `rules[0].trigger.edge: expected one of left, right, top, bottom`, and no rules from that file are used.
+Two rules may not share the same edge and modifiers. If the config has an error, the menu shows it with its location, for example `rules[0].trigger.edge: expected one of left, right, top, bottom`, and no rules from that file are used. While Cue runs, a save with an error, or deleting the file, keeps the rules from the last working save in force; the error shows until a save fixes it. **Open Config** on a deleted file starts a new config with no rules.
 
 ### Keys
 
