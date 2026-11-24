@@ -21,16 +21,23 @@ public enum ShellCommand {
 
     /// The user's login shell from the user database (`/bin/zsh`, macOS's default, if it names none).
     public static var loginShell: URL {
-        var entry = passwd()
-        var found: UnsafeMutablePointer<passwd>?
-        var buffer = [CChar](repeating: 0, count: 4096)
-        let shell: String? = buffer.withUnsafeMutableBufferPointer { storage in
-            guard getpwuid_r(getuid(), &entry, storage.baseAddress, storage.count, &found) == 0, found != nil,
-                  let shell = entry.pw_shell, shell.pointee != 0
-            else { return nil }
-            return String(cString: shell)
+        var size = max(Int(sysconf(Int32(_SC_GETPW_R_SIZE_MAX))), 4096)
+        while true {
+            var buffer = [CChar](repeating: 0, count: size)
+            // `pw_shell` points into `buffer`, so it is read before the buffer's storage is released.
+            let (status, shell) = buffer.withUnsafeMutableBufferPointer { storage -> (Int32, String?) in
+                var entry = passwd()
+                var found: UnsafeMutablePointer<passwd>?
+                let status = getpwuid_r(getuid(), &entry, storage.baseAddress, storage.count, &found)
+                guard status == 0, found != nil, let shell = entry.pw_shell, shell.pointee != 0 else { return (status, nil) }
+                return (status, String(cString: shell))
+            }
+            if status == ERANGE, size < 1 << 20 {
+                size *= 2
+                continue
+            }
+            return URL(filePath: shell ?? "/bin/zsh")
         }
-        return URL(filePath: shell ?? "/bin/zsh")
     }
 
     /// The arguments that run `command` in `shell` as a login shell: `-l -c <command>`. csh and tcsh accept `-l` only
