@@ -23,7 +23,7 @@ import Testing
         }
 
         /// Waits `seconds` and expects no change beyond `count`.
-        func expectQuiet(at count: Int, for seconds: Double = 0.4, sourceLocation: SourceLocation = #_sourceLocation)
+        func expectQuiet(at count: Int, for seconds: Double = 0.5, sourceLocation: SourceLocation = #_sourceLocation)
             async throws
         {
             try await Task.sleep(for: .seconds(seconds))
@@ -56,7 +56,8 @@ import Testing
         func stop() { queue.sync { watcher.stop() } }
     }
 
-    func watch(_ url: URL? = nil, debounce: Double = 0.05) -> (Watch, Changes) {
+    /// The debounce leaves room for a loaded machine delivering one operation's events apart.
+    func watch(_ url: URL? = nil, debounce: Double = 0.15) -> (Watch, Changes) {
         let changes = Changes()
         let queue = DispatchQueue(label: "ConfigWatcherTests")
         let watcher = ConfigWatcher(
@@ -68,7 +69,7 @@ import Testing
     @Test func reportsAWriteInPlace() async throws {
         let (watching, changes) = watch()
         defer { watching.stop() }
-        try await changes.expectQuiet(at: 0, for: 0.2)
+        try await changes.expectQuiet(at: 0)
         try write("{\"rules\": [1]}", atomically: false)
         try await changes.wait(for: 1)
     }
@@ -79,7 +80,7 @@ import Testing
         defer { watching.stop() }
         try write("{\"rules\": [1]}", atomically: true)
         try await changes.wait(for: 1)
-        try await changes.expectQuiet(at: 1, for: 0.2)
+        try await changes.expectQuiet(at: 1)
         try write("{\"rules\": [2]}", atomically: false)
         try await changes.wait(for: 2)
         try write("{\"rules\": [3]}", atomically: true)
@@ -91,11 +92,11 @@ import Testing
         defer { watching.stop() }
         try FileManager.default.removeItem(at: file)
         try await changes.wait(for: 1)
-        try await changes.expectQuiet(at: 1, for: 0.2)
+        try await changes.expectQuiet(at: 1)
         try write("{\"rules\": [1]}", atomically: false)
         try await changes.wait(for: 2)
         // The recreated file is watched for writes too.
-        try await changes.expectQuiet(at: 2, for: 0.2)
+        try await changes.expectQuiet(at: 2)
         try write("{\"rules\": [2]}", atomically: false)
         try await changes.wait(for: 3)
     }
@@ -111,16 +112,32 @@ import Testing
         try await changes.expectQuiet(at: 1, for: 0.8)
     }
 
+    /// Another file in the directory changing every 20 ms does not hold the reload back past `10 × debounce`.
+    @Test func reportsDuringSteadyActivity() async throws {
+        let (watching, changes) = watch(debounce: 0.1)
+        defer { watching.stop() }
+        let other = file.deletingLastPathComponent().appending(path: "other.txt")
+        try write("{\"rules\": [1]}", atomically: false)
+        let deadline = Date().addingTimeInterval(1.6)
+        var index = 0
+        while Date() < deadline {
+            try write("\(index)", atomically: true, to: other)
+            index += 1
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(changes.count >= 1, "no change reported during 1.6 s of steady activity")
+    }
+
     @Test func waitsForAMissingDirectory() async throws {
         let missing = root.appending(path: "later/config.json")
         let (watching, changes) = watch(missing)
         defer { watching.stop() }
-        try await changes.expectQuiet(at: 0, for: 0.2)
+        try await changes.expectQuiet(at: 0)
         try FileManager.default.createDirectory(at: missing.deletingLastPathComponent(), withIntermediateDirectories: true)
         try await changes.wait(for: 1)
         try write("{\"rules\": []}", atomically: true, to: missing)
         try await changes.wait(for: 2)
-        try await changes.expectQuiet(at: 2, for: 0.2)
+        try await changes.expectQuiet(at: 2)
         try write("{\"rules\": [1]}", atomically: false, to: missing)
         try await changes.wait(for: 3)
     }
@@ -132,7 +149,7 @@ import Testing
         defer { watching.stop() }
         try write("{\"rules\": [1]}", atomically: true)
         try await changes.wait(for: 1)
-        try await changes.expectQuiet(at: 1, for: 0.2)
+        try await changes.expectQuiet(at: 1)
         try write("{\"rules\": [2]}", atomically: false)
         try await changes.wait(for: 2)
     }
@@ -150,7 +167,7 @@ import Testing
         // The target is replaced in its own directory, which is not watched; the old target's deletion is.
         try write("{\"rules\": [2]}", atomically: true, to: target)
         try await changes.wait(for: 2)
-        try await changes.expectQuiet(at: 2, for: 0.2)
+        try await changes.expectQuiet(at: 2)
         try write("{\"rules\": [3]}", atomically: false, to: target)
         try await changes.wait(for: 3)
     }

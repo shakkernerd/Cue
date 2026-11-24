@@ -36,8 +36,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        loadConfig()
+        // Watch first, so a save during the launch read is not missed; a change the read already saw is a no-op.
         configWatcher.start()
+        loadConfig()
         NotificationCenter.default.addObserver(
             self, selector: #selector(screensChanged), name: NSApplication.didChangeScreenParametersNotification,
             object: nil)

@@ -2,7 +2,8 @@ import Dispatch
 import Foundation
 
 /// Calls `onChange` on `queue` after the file at a path is written in place, replaced (an editor's atomic save by
-/// rename), deleted or created, once per burst of changes: events closer together than `debounce` produce one call.
+/// rename), deleted or created, once per burst of changes: events closer together than `debounce` produce one call,
+/// and a burst that goes on reports at least every `10 × debounce`.
 ///
 /// It watches the file's directory for entries appearing, disappearing or being renamed over, and the file itself for
 /// writes. After a replacement it watches the new file. A symbolic link in the path is followed when a watch opens, so
@@ -26,6 +27,8 @@ public final class ConfigWatcher: @unchecked Sendable {
     private var directorySource: DispatchSourceFileSystemObject?
     private var fileSource: DispatchSourceFileSystemObject?
     private var pendingChange: DispatchWorkItem?
+    /// When the first change not reported yet arrived.
+    private var burstStart: DispatchTime?
     private var pendingRetry: DispatchWorkItem?
 
     public init(
@@ -38,6 +41,13 @@ public final class ConfigWatcher: @unchecked Sendable {
         self.debounce = debounce
         self.retryInterval = retryInterval
         self.onChange = onChange
+    }
+
+    deinit {
+        pendingChange?.cancel()
+        pendingRetry?.cancel()
+        fileSource?.cancel()
+        directorySource?.cancel()
     }
 
     /// Starts watching. Changes from now on are reported; the file's current contents are not.
@@ -54,6 +64,7 @@ public final class ConfigWatcher: @unchecked Sendable {
         running = false
         pendingChange?.cancel()
         pendingChange = nil
+        burstStart = nil
         pendingRetry?.cancel()
         pendingRetry = nil
         closeFileWatch()
@@ -123,16 +134,21 @@ public final class ConfigWatcher: @unchecked Sendable {
         queue.asyncAfter(deadline: .now() + retryInterval, execute: item)
     }
 
-    /// Reports a change once no further change has arrived for `debounce`.
+    /// Reports a change once no further change has arrived for `debounce`, or once the burst has lasted
+    /// `10 × debounce`, so steady activity in the directory cannot hold a reload back.
     private func changed() {
         pendingChange?.cancel()
+        let now = DispatchTime.now()
+        let start = burstStart ?? now
+        burstStart = start
         let item = DispatchWorkItem { [weak self] in
             guard let self, running else { return }
             pendingChange = nil
+            burstStart = nil
             onChange()
         }
         pendingChange = item
-        queue.asyncAfter(deadline: .now() + debounce, execute: item)
+        queue.asyncAfter(deadline: min(now + debounce, start + debounce * 10), execute: item)
     }
 
     private static func source(
