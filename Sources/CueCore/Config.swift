@@ -15,6 +15,8 @@ public struct Trigger: Hashable, Sendable {
 public enum Action: Hashable, Sendable {
     /// Post this keystroke system-wide.
     case keys(KeySpec)
+    /// Run this command through the user's login shell.
+    case shell(String)
 }
 
 public struct Rule: Hashable, Sendable {
@@ -94,7 +96,7 @@ public struct Config: Equatable, Sendable {
         return Trigger(edge: edge, modifiers: modifiers)
     }
 
-    private static let actionKinds = ["keys"]
+    private static let actionKinds = ["keys", "shell"]
 
     private static func parseAction(_ json: Any, at path: String) throws(ConfigError) -> Action {
         guard let action = json as? [String: Any] else {
@@ -115,6 +117,14 @@ public struct Config: Equatable, Sendable {
             } catch {
                 throw ConfigError("\(path).keys: \(error)")
             }
+        case "shell":
+            guard let command = value as? String else {
+                throw ConfigError("\(path).shell: expected a string such as \"open -a Safari\"")
+            }
+            guard !command.allSatisfy(\.isWhitespace) else {
+                throw ConfigError("\(path).shell: expected a command, found an empty string")
+            }
+            return .shell(command)
         default:
             throw ConfigError("\(path): unknown action kind \"\(kind)\"; supported: \(supported)")
         }

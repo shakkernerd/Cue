@@ -152,6 +152,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             Keystroke.post(spec)
             log.notice("fired \(Self.describe(rule.trigger), privacy: .public): keys \(spec.description, privacy: .public)")
+        case .shell(let command):
+            // The command text can hold secrets, so it is not logged; the trigger names the rule.
+            let trigger = Self.describe(rule.trigger)
+            do {
+                let pid = try ShellCommand.run(command) { pid, exit in
+                    if exit.succeeded {
+                        log.info("shell pid \(pid) for \(trigger, privacy: .public) ended: \(exit.description, privacy: .public)")
+                    } else {
+                        log.error("shell pid \(pid) for \(trigger, privacy: .public) failed: \(exit.description, privacy: .public)")
+                    }
+                }
+                log.notice("fired \(trigger, privacy: .public): shell pid \(pid)")
+            } catch {
+                log.error("not fired \(trigger, privacy: .public): cannot start the shell: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
