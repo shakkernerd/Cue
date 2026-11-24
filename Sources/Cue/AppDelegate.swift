@@ -31,8 +31,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private lazy var tap = EventTap(onMove: { [unowned self] event in pointerMoved(event) })
 
+    private lazy var configWatcher = ConfigWatcher(url: configURL, queue: .main) { [weak self] in
+        MainActor.assumeIsolated { self?.reloadConfig(force: false) }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         loadConfig()
+        configWatcher.start()
         NotificationCenter.default.addObserver(
             self, selector: #selector(screensChanged), name: NSApplication.didChangeScreenParametersNotification,
             object: nil)
@@ -53,14 +58,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: Config
 
+    /// At launch: creates the config when it is missing, then reads it.
     private func loadConfig() {
-        config.apply(ConfigFile.load(from: configURL))
+        apply(ConfigFile.load(from: configURL), force: true)
+    }
+
+    /// After the file changed, or from the menu (`force`). A missing or invalid file keeps the rules in force.
+    private func reloadConfig(force: Bool) {
+        apply(ConfigFile.read(from: configURL), force: force)
+    }
+
+    @objc private func reloadConfigFromMenu() {
+        reloadConfig(force: true)
+    }
+
+    /// Applies a load result. Without `force`, a result that changes neither the rules nor the error is not logged.
+    private func apply(_ result: Result<Config, ConfigError>, force: Bool) {
+        let before = config
+        config.apply(result)
+        guard force || config != before else { return }
         if let error = config.error {
             log.error("config error: \(error.description, privacy: .public)")
         } else {
             log.info("loaded \(self.config.rules.count) rule(s) from \(self.configURL.path(percentEncoded: false), privacy: .public)")
         }
-        watcher.setRules(config.rules)
+        // Setting rules cancels a rule waiting out its dwell; an unchanged rule set must not.
+        if config.rules != before.rules {
+            watcher.setRules(config.rules)
+        }
     }
 
     @objc private func openConfig() {
@@ -219,6 +244,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
         menu.addItem(Self.action("Open Config", #selector(openConfig), key: ",", target: self))
+        menu.addItem(Self.action("Reload Config", #selector(reloadConfigFromMenu), key: "r", target: self))
         menu.addItem(.separator())
         menu.addItem(Self.action("Quit Cue", #selector(NSApplication.terminate(_:)), key: "q", target: NSApp))
     }

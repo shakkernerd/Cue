@@ -29,6 +29,12 @@ public enum ConfigFile {
         } catch {
             return .failure(error)
         }
+        return read(from: url)
+    }
+
+    /// Reads and validates the config at `url`. A missing file is an error: when it was deleted while Cue runs, the
+    /// rules in force stay until it is back.
+    public static func read(from url: URL) -> Result<Config, ConfigError> {
         let data: Data
         do {
             data = try Data(contentsOf: url)
